@@ -9,7 +9,7 @@
 
 ## 시연 영상
 
-[▶ 시연 영상 보기 (docs/demo.mp4)](docs/demo.mp4)
+https://github.com/user-attachments/assets/b3c0afdd-a483-41b4-8bed-1efe4c5252d8
 
 ## 어떤 문제를 풀었나요?
 
