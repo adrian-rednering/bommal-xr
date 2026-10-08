@@ -1,0 +1,67 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &100000
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 400000}
+  - component: {fileID: 11400000}
+  m_Layer: 0
+  m_Name: PresentationAudienceGroup
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &400000
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 100000}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 100000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8aa1c2d3e4f5472bb7c6d5e4f3a29180, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  rowCount: 5
+  seatsPerSide: 4
+  firstSeatX: 1.85
+  seatSpacingX: 1.25
+  firstRowZ: 3.35
+  rowSpacingZ: 1.55
+  firstSeatY: 0.4
+  rowRiseY: 0.28
+  occupancy: 0.82
+  bodyScale: {x: 0.34, y: 0.46, z: 0.22}
+  headScale: {x: 0.21, y: 0.25, z: 0.2}
+  hairScale: {x: 0.23, y: 0.07, z: 0.2}
+  clothingMaterials:
+  - {fileID: 2100000, guid: 91a2b3c4d5e64718a9b8c7d6e5f40312, type: 2}
+  - {fileID: 2100000, guid: 82b3c4d5e6f74718b8c7d6e5f4031291, type: 2}
+  - {fileID: 2100000, guid: 73c4d5e6f7a84718c7d6e5f403129182, type: 2}
+  - {fileID: 2100000, guid: 64d5e6f7a8b94718d6e5f40312918273, type: 2}
+  skinMaterials:
+  - {fileID: 2100000, guid: 55e6f7a8b9c04718e5f4031291827364, type: 2}
+  - {fileID: 2100000, guid: 46f7a8b9c0d14718f403129182736455, type: 2}
+  hairMaterial: {fileID: 2100000, guid: 37a8b9c0d1e2471812918273645546f7, type: 2}
