@@ -120,7 +120,7 @@ public class PracticeUIFlowManager : MonoBehaviour
             return;
         }
 
-        var root = FindInActiveScene(PracticeUiRootName);
+        var root = SceneObjectUtility.FindInActiveScene(PracticeUiRootName);
         if (root == null)
         {
             return;
@@ -417,7 +417,7 @@ public class PracticeUIFlowManager : MonoBehaviour
 
     private void ResolveReferences()
     {
-        var sceneRoot = FindInActiveScene(PracticeUiRootName);
+        var sceneRoot = SceneObjectUtility.FindInActiveScene(PracticeUiRootName);
         if (practiceUiRoot == null || practiceUiRoot.name != PracticeUiRootName)
         {
             practiceUiRoot = sceneRoot;
@@ -456,62 +456,13 @@ public class PracticeUIFlowManager : MonoBehaviour
 
     private void ResolveSttDebugOverlay()
     {
-        if (!showSttDebugOverlay)
-        {
-            if (sttDebugText != null)
-            {
-                sttDebugText.gameObject.SetActive(false);
-            }
-
-            return;
-        }
-
-        if (sttDebugText == null && practiceUiRoot != null)
-        {
-            var existing = FindChildRecursive(practiceUiRoot, sttDebugTextObjectName);
-            if (existing != null)
-            {
-                sttDebugText = existing.GetComponent<Text>();
-            }
-        }
-
-        if (sttDebugText == null && practiceUiRoot != null)
-        {
-            var debugObject = new GameObject(sttDebugTextObjectName, typeof(RectTransform));
-            debugObject.transform.SetParent(practiceUiRoot, false);
-            sttDebugText = debugObject.AddComponent<Text>();
-        }
-
-        if (sttDebugText == null)
-        {
-            return;
-        }
-
-        sttDebugText.gameObject.SetActive(true);
-        sttDebugText.raycastTarget = false;
-        sttDebugText.alignment = TextAnchor.UpperCenter;
-        sttDebugText.horizontalOverflow = HorizontalWrapMode.Wrap;
-        sttDebugText.verticalOverflow = VerticalWrapMode.Truncate;
-        sttDebugText.fontSize = 28;
-        sttDebugText.color = new Color(1f, 0.92f, 0.25f, 1f);
-
-        if (sttDebugText.font == null)
-        {
-            sttDebugText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            if (sttDebugText.font == null)
-            {
-                sttDebugText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            }
-        }
-
-        var rectTransform = sttDebugText.rectTransform;
-        rectTransform.anchorMin = new Vector2(0.5f, 1f);
-        rectTransform.anchorMax = new Vector2(0.5f, 1f);
-        rectTransform.pivot = new Vector2(0.5f, 1f);
-        rectTransform.anchoredPosition = new Vector2(0f, -24f);
-        rectTransform.sizeDelta = new Vector2(680f, 96f);
-        rectTransform.localScale = Vector3.one;
-
+        sttDebugText = DebugOverlayText.Resolve(
+            sttDebugText,
+            practiceUiRoot,
+            sttDebugTextObjectName,
+            showSttDebugOverlay,
+            false
+        );
         SetSttDebugText("STT raw: waiting");
     }
 
@@ -765,26 +716,6 @@ public class PracticeUIFlowManager : MonoBehaviour
             return;
         }
 
-        if (voiceEvaluation.onResponseJson == null)
-        {
-            voiceEvaluation.onResponseJson = new UnityEvent<string>();
-        }
-
-        if (voiceEvaluation.onTranscript == null)
-        {
-            voiceEvaluation.onTranscript = new UnityEvent<string>();
-        }
-
-        if (voiceEvaluation.onError == null)
-        {
-            voiceEvaluation.onError = new UnityEvent<string>();
-        }
-
-        if (voiceEvaluation.onMicInputDebug == null)
-        {
-            voiceEvaluation.onMicInputDebug = new UnityEvent<string>();
-        }
-
         voiceEvaluation.onResponseJson.RemoveListener(OnVoiceResponseJson);
         voiceEvaluation.onTranscript.RemoveListener(OnVoiceTranscript);
         voiceEvaluation.onError.RemoveListener(OnVoiceError);
@@ -846,25 +777,10 @@ public class PracticeUIFlowManager : MonoBehaviour
             return;
         }
 
-        if (voiceEvaluation.onResponseJson != null)
-        {
-            voiceEvaluation.onResponseJson.RemoveListener(OnVoiceResponseJson);
-        }
-
-        if (voiceEvaluation.onTranscript != null)
-        {
-            voiceEvaluation.onTranscript.RemoveListener(OnVoiceTranscript);
-        }
-
-        if (voiceEvaluation.onError != null)
-        {
-            voiceEvaluation.onError.RemoveListener(OnVoiceError);
-        }
-
-        if (voiceEvaluation.onMicInputDebug != null)
-        {
-            voiceEvaluation.onMicInputDebug.RemoveListener(OnMicInputDebug);
-        }
+        voiceEvaluation.onResponseJson.RemoveListener(OnVoiceResponseJson);
+        voiceEvaluation.onTranscript.RemoveListener(OnVoiceTranscript);
+        voiceEvaluation.onError.RemoveListener(OnVoiceError);
+        voiceEvaluation.onMicInputDebug.RemoveListener(OnMicInputDebug);
     }
 
     private void OnVoiceResponseJson(string responseJson)
@@ -874,32 +790,24 @@ public class PracticeUIFlowManager : MonoBehaviour
             return;
         }
 
-        VoiceEvaluationResponse response = null;
-        try
-        {
-            response = JsonUtility.FromJson<VoiceEvaluationResponse>(responseJson);
-        }
-        catch (Exception exception)
-        {
-            Debug.LogWarning("PracticeUIFlowManager: voice response parse failed. " + exception.Message);
-        }
+        var response = VoiceResponseEvaluator.Parse(responseJson, nameof(PracticeUIFlowManager));
 
         SetListeningRecognized(true);
-        SetSttDebugText(FormatSttDebugTranscript(response != null ? response.transcript : null));
+        SetSttDebugText(DebugOverlayText.FormatTranscript(response != null ? response.transcript : null));
         waitingForVoiceResult = false;
         NotifyAnswerResult(IsResponseCorrect(response));
     }
 
     private void OnVoiceTranscript(string transcript)
     {
-        SetSttDebugText(FormatSttDebugTranscript(transcript));
+        SetSttDebugText(DebugOverlayText.FormatTranscript(transcript));
         NotifySpeechRecognized(transcript);
     }
 
     private void OnVoiceError(string message)
     {
         Debug.LogWarning("PracticeUIFlowManager: voice evaluation error. " + message);
-        SetSttDebugText("STT error: " + TrimForSttDebug(message));
+        SetSttDebugText("STT error: " + DebugOverlayText.Trim(message, sttDebugMaxChars));
 
         if (!waitingForVoiceResult || !showWrongPanelOnVoiceError)
         {
@@ -927,73 +835,14 @@ public class PracticeUIFlowManager : MonoBehaviour
             return;
         }
 
-        sttDebugText.text = TrimForSttDebug(message);
-    }
-
-    private string FormatSttDebugTranscript(string transcript)
-    {
-        var value = string.IsNullOrWhiteSpace(transcript) ? "<empty>" : transcript.Trim();
-        return "STT raw: " + value;
-    }
-
-    private string TrimForSttDebug(string value)
-    {
-        if (string.IsNullOrEmpty(value) || sttDebugMaxChars <= 0)
-        {
-            return value;
-        }
-
-        if (value.Length <= sttDebugMaxChars)
-        {
-            return value;
-        }
-
-        return value.Substring(0, sttDebugMaxChars) + "...";
+        sttDebugText.text = DebugOverlayText.Trim(message, sttDebugMaxChars);
     }
 
     private bool IsResponseCorrect(VoiceEvaluationResponse response)
     {
-        if (response == null)
-        {
-            return false;
-        }
-
-        if (
-            response.requiresRetry
-            || string.Equals(response.analysisStatus, "UNDETERMINED", StringComparison.OrdinalIgnoreCase)
-        )
-        {
-            return false;
-        }
-
-        if (response.wordResults != null && response.wordResults.Length > 0)
-        {
-            foreach (var wordResult in response.wordResults)
-            {
-                if (wordResult == null || string.IsNullOrWhiteSpace(wordResult.status))
-                {
-                    return false;
-                }
-
-                if (
-                    !wordResult.accepted
-                    && !string.Equals(wordResult.status, "CORRECT", StringComparison.OrdinalIgnoreCase)
-                )
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        if (response.score != null)
-        {
-            return response.score.overallScore >= correctScoreThreshold
-                || response.score.accuracyScore >= correctScoreThreshold;
-        }
-
-        return IsTranscriptCorrect(response.transcript, selectedExpectedAnswer);
+        return VoiceResponseEvaluator.TryEvaluate(response, correctScoreThreshold, true, out var isCorrect)
+            ? isCorrect
+            : IsTranscriptCorrect(response.transcript, selectedExpectedAnswer);
     }
 
     private bool IsTranscriptCorrect(string transcript, string expected)
@@ -1332,21 +1181,13 @@ public class PracticeUIFlowManager : MonoBehaviour
 
     private void ShowOnly(GameObject targetPanel)
     {
-        SetPanelActive(startInstructionPanel, targetPanel);
-        SetPanelActive(listeningPanel, targetPanel);
-        SetPanelActive(wrongPanel, targetPanel);
-        SetPanelActive(tryPanel, targetPanel);
-        SetPanelActive(tryPanel2, targetPanel);
-        SetPanelActive(correctPanel, targetPanel);
-        SetPanelActive(preparationPanel, targetPanel);
-    }
-
-    private static void SetPanelActive(GameObject panel, GameObject targetPanel)
-    {
-        if (panel != null)
-        {
-            panel.SetActive(panel == targetPanel);
-        }
+        SceneObjectUtility.SetPanelActive(startInstructionPanel, targetPanel);
+        SceneObjectUtility.SetPanelActive(listeningPanel, targetPanel);
+        SceneObjectUtility.SetPanelActive(wrongPanel, targetPanel);
+        SceneObjectUtility.SetPanelActive(tryPanel, targetPanel);
+        SceneObjectUtility.SetPanelActive(tryPanel2, targetPanel);
+        SceneObjectUtility.SetPanelActive(correctPanel, targetPanel);
+        SceneObjectUtility.SetPanelActive(preparationPanel, targetPanel);
     }
 
     private void StopCurrentFlow()
@@ -1378,7 +1219,7 @@ public class PracticeUIFlowManager : MonoBehaviour
 
     private GameObject FindChildGameObject(string childName, bool warnIfMissing = true)
     {
-        var child = FindChildRecursive(practiceUiRoot, childName);
+        var child = SceneObjectUtility.FindChildRecursive(practiceUiRoot, childName);
         if (child == null)
         {
             if (warnIfMissing)
@@ -1434,7 +1275,7 @@ public class PracticeUIFlowManager : MonoBehaviour
             return null;
         }
 
-        var child = FindChildRecursive(parent.transform, childName);
+        var child = SceneObjectUtility.FindChildRecursive(parent.transform, childName);
         return child != null ? child.gameObject : null;
     }
 
@@ -1489,7 +1330,7 @@ public class PracticeUIFlowManager : MonoBehaviour
             return null;
         }
 
-        var startButtonTransform = FindChildRecursive(preparationPanel.transform, "StartButton");
+        var startButtonTransform = SceneObjectUtility.FindChildRecursive(preparationPanel.transform, "StartButton");
         if (startButtonTransform == null)
         {
             return null;
@@ -1594,46 +1435,6 @@ public class PracticeUIFlowManager : MonoBehaviour
         const float c3 = c1 + 1f;
         var t = value - 1f;
         return 1f + c3 * t * t * t + c1 * t * t;
-    }
-
-    private static Transform FindInActiveScene(string objectName)
-    {
-        var scene = SceneManager.GetActiveScene();
-        var roots = scene.GetRootGameObjects();
-        foreach (var root in roots)
-        {
-            var found = FindChildRecursive(root.transform, objectName);
-            if (found != null)
-            {
-                return found;
-            }
-        }
-
-        return null;
-    }
-
-    private static Transform FindChildRecursive(Transform parent, string childName)
-    {
-        if (parent == null)
-        {
-            return null;
-        }
-
-        if (parent.name == childName)
-        {
-            return parent;
-        }
-
-        for (var index = 0; index < parent.childCount; index++)
-        {
-            var found = FindChildRecursive(parent.GetChild(index), childName);
-            if (found != null)
-            {
-                return found;
-            }
-        }
-
-        return null;
     }
 
     private sealed class ChoiceBinding

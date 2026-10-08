@@ -1,8 +1,6 @@
 using System;
 using System.Collections;
 using UnityEngine;
-using UnityEngine.Events;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 [DefaultExecutionOrder(-45)]
@@ -83,7 +81,7 @@ public sealed class PresentationUIFlowManager : MonoBehaviour
             return;
         }
 
-        var simulationPanel = FindInActiveScene("SimulationPanel");
+        var simulationPanel = SceneObjectUtility.FindInActiveScene("SimulationPanel", true);
         if (simulationPanel == null)
         {
             return;
@@ -243,17 +241,9 @@ public sealed class PresentationUIFlowManager : MonoBehaviour
             return;
         }
 
-        VoiceEvaluationResponse response = null;
-        try
-        {
-            response = JsonUtility.FromJson<VoiceEvaluationResponse>(responseJson);
-        }
-        catch (ArgumentException exception)
-        {
-            Debug.LogWarning("PresentationUIFlowManager: voice response parse failed. " + exception.Message);
-        }
+        var response = VoiceResponseEvaluator.Parse(responseJson, nameof(PresentationUIFlowManager));
 
-        SetMicDebugText(FormatSttDebugTranscript(response != null ? response.transcript : null));
+        SetMicDebugText(DebugOverlayText.FormatTranscript(response != null ? response.transcript : null));
         CompleteVoiceResult(IsResponseCorrect(response), BuildFeedback(response));
     }
 
@@ -264,7 +254,7 @@ public sealed class PresentationUIFlowManager : MonoBehaviour
             return;
         }
 
-        SetMicDebugText("MIC/STT error: " + TrimForMicDebug(message));
+        SetMicDebugText("MIC/STT error: " + DebugOverlayText.Trim(message, micDebugMaxChars));
         CompleteVoiceResult(false, message);
     }
 
@@ -361,42 +351,8 @@ public sealed class PresentationUIFlowManager : MonoBehaviour
 
     private bool IsResponseCorrect(VoiceEvaluationResponse response)
     {
-        if (response == null)
-        {
-            return false;
-        }
-
-        if (
-            response.requiresRetry
-            || string.Equals(response.analysisStatus, "UNDETERMINED", StringComparison.OrdinalIgnoreCase)
-        )
-        {
-            return false;
-        }
-
-        if (response.wordResults != null && response.wordResults.Length > 0)
-        {
-            foreach (var wordResult in response.wordResults)
-            {
-                if (wordResult == null || string.IsNullOrWhiteSpace(wordResult.status))
-                {
-                    return false;
-                }
-
-                if (!string.Equals(wordResult.status, "CORRECT", StringComparison.OrdinalIgnoreCase))
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        return response.score != null
-            && (
-                response.score.overallScore >= correctScoreThreshold
-                || response.score.accuracyScore >= correctScoreThreshold
-            );
+        return VoiceResponseEvaluator.TryEvaluate(response, correctScoreThreshold, false, out var isCorrect)
+            && isCorrect;
     }
 
     private static string BuildFeedback(VoiceEvaluationResponse response)
@@ -428,8 +384,8 @@ public sealed class PresentationUIFlowManager : MonoBehaviour
     {
         if (uiRoot == null)
         {
-            var canvasRoot = FindInActiveScene(CanvasRootName);
-            uiRoot = canvasRoot != null ? canvasRoot : FindInActiveScene("Practice_UI_Root");
+            var canvasRoot = SceneObjectUtility.FindInActiveScene(CanvasRootName, true);
+            uiRoot = canvasRoot != null ? canvasRoot : SceneObjectUtility.FindInActiveScene("Practice_UI_Root", true);
         }
 
         simulationPanel = simulationPanel != null ? simulationPanel : FindChildGameObject("SimulationPanel");
@@ -491,21 +447,6 @@ public sealed class PresentationUIFlowManager : MonoBehaviour
             return;
         }
 
-        if (voiceEvaluation.onResponseJson == null)
-        {
-            voiceEvaluation.onResponseJson = new UnityEvent<string>();
-        }
-
-        if (voiceEvaluation.onError == null)
-        {
-            voiceEvaluation.onError = new UnityEvent<string>();
-        }
-
-        if (voiceEvaluation.onMicInputDebug == null)
-        {
-            voiceEvaluation.onMicInputDebug = new UnityEvent<string>();
-        }
-
         voiceEvaluation.onResponseJson.RemoveListener(OnVoiceResponseJson);
         voiceEvaluation.onError.RemoveListener(OnVoiceError);
         voiceEvaluation.onMicInputDebug.RemoveListener(OnMicInputDebug);
@@ -521,27 +462,16 @@ public sealed class PresentationUIFlowManager : MonoBehaviour
             return;
         }
 
-        if (voiceEvaluation.onResponseJson != null)
-        {
-            voiceEvaluation.onResponseJson.RemoveListener(OnVoiceResponseJson);
-        }
-
-        if (voiceEvaluation.onError != null)
-        {
-            voiceEvaluation.onError.RemoveListener(OnVoiceError);
-        }
-
-        if (voiceEvaluation.onMicInputDebug != null)
-        {
-            voiceEvaluation.onMicInputDebug.RemoveListener(OnMicInputDebug);
-        }
+        voiceEvaluation.onResponseJson.RemoveListener(OnVoiceResponseJson);
+        voiceEvaluation.onError.RemoveListener(OnVoiceError);
+        voiceEvaluation.onMicInputDebug.RemoveListener(OnMicInputDebug);
     }
 
     private void ShowOnly(GameObject targetPanel)
     {
-        SetPanelActive(simulationPanel, targetPanel);
-        SetPanelActive(loadingPanel, targetPanel);
-        SetPanelActive(feedbackPanel, targetPanel);
+        SceneObjectUtility.SetPanelActive(simulationPanel, targetPanel);
+        SceneObjectUtility.SetPanelActive(loadingPanel, targetPanel);
+        SceneObjectUtility.SetPanelActive(feedbackPanel, targetPanel);
     }
 
     private void StopCurrentFlow()
@@ -562,14 +492,6 @@ public sealed class PresentationUIFlowManager : MonoBehaviour
         {
             StopCoroutine(loadingRoutine);
             loadingRoutine = null;
-        }
-    }
-
-    private static void SetPanelActive(GameObject panel, GameObject targetPanel)
-    {
-        if (panel != null)
-        {
-            panel.SetActive(panel == targetPanel);
         }
     }
 
@@ -631,62 +553,13 @@ public sealed class PresentationUIFlowManager : MonoBehaviour
 
     private void ResolveMicDebugOverlay()
     {
-        if (!showMicDebugOverlay)
-        {
-            if (micDebugText != null)
-            {
-                micDebugText.gameObject.SetActive(false);
-            }
-
-            return;
-        }
-
-        if (micDebugText == null && uiRoot != null)
-        {
-            var existing = FindChildRecursive(uiRoot, micDebugTextObjectName);
-            if (existing != null)
-            {
-                micDebugText = existing.GetComponent<Text>();
-            }
-        }
-
-        if (micDebugText == null && uiRoot != null)
-        {
-            var debugObject = new GameObject(micDebugTextObjectName, typeof(RectTransform));
-            debugObject.transform.SetParent(uiRoot, false);
-            micDebugText = debugObject.AddComponent<Text>();
-        }
-
-        if (micDebugText == null)
-        {
-            return;
-        }
-
-        micDebugText.gameObject.SetActive(true);
-        micDebugText.raycastTarget = false;
-        micDebugText.alignment = TextAnchor.UpperCenter;
-        micDebugText.horizontalOverflow = HorizontalWrapMode.Wrap;
-        micDebugText.verticalOverflow = VerticalWrapMode.Truncate;
-        micDebugText.fontSize = 28;
-        micDebugText.color = new Color(1f, 0.92f, 0.25f, 1f);
-
-        if (micDebugText.font == null)
-        {
-            micDebugText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            if (micDebugText.font == null)
-            {
-                micDebugText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            }
-        }
-
-        var rectTransform = micDebugText.rectTransform;
-        rectTransform.anchorMin = new Vector2(0.5f, 1f);
-        rectTransform.anchorMax = new Vector2(0.5f, 1f);
-        rectTransform.pivot = new Vector2(0.5f, 1f);
-        rectTransform.anchoredPosition = new Vector2(0f, -24f);
-        rectTransform.sizeDelta = new Vector2(680f, 96f);
-        rectTransform.localScale = Vector3.one;
-
+        micDebugText = DebugOverlayText.Resolve(
+            micDebugText,
+            uiRoot,
+            micDebugTextObjectName,
+            showMicDebugOverlay,
+            true
+        );
         SetMicDebugText("MIC raw: waiting");
     }
 
@@ -707,28 +580,7 @@ public sealed class PresentationUIFlowManager : MonoBehaviour
             return;
         }
 
-        micDebugText.text = TrimForMicDebug(message);
-    }
-
-    private string FormatSttDebugTranscript(string transcript)
-    {
-        var value = string.IsNullOrWhiteSpace(transcript) ? "<empty>" : transcript.Trim();
-        return "STT raw: " + value;
-    }
-
-    private string TrimForMicDebug(string value)
-    {
-        if (string.IsNullOrEmpty(value) || micDebugMaxChars <= 0)
-        {
-            return value;
-        }
-
-        if (value.Length <= micDebugMaxChars)
-        {
-            return value;
-        }
-
-        return value.Substring(0, micDebugMaxChars) + "...";
+        micDebugText.text = DebugOverlayText.Trim(message, micDebugMaxChars);
     }
 
     private GameObject FindChildGameObject(string childName, bool warnIfMissing = true)
@@ -752,7 +604,7 @@ public sealed class PresentationUIFlowManager : MonoBehaviour
             return null;
         }
 
-        var child = FindChildRecursive(parent.transform, childName);
+        var child = SceneObjectUtility.FindChildRecursive(parent.transform, childName, true);
         if (child == null)
         {
             if (warnIfMissing)
@@ -862,7 +714,7 @@ public sealed class PresentationUIFlowManager : MonoBehaviour
         var names = new[] { "LoadingSpinner", "Spinner", "Circle", "ProgressCircle" };
         foreach (var name in names)
         {
-            var found = FindChildRecursive(parent.transform, name);
+            var found = SceneObjectUtility.FindChildRecursive(parent.transform, name, true);
             if (found != null)
             {
                 return found;
@@ -872,43 +724,4 @@ public sealed class PresentationUIFlowManager : MonoBehaviour
         return null;
     }
 
-    private static Transform FindInActiveScene(string objectName)
-    {
-        var scene = SceneManager.GetActiveScene();
-        var roots = scene.GetRootGameObjects();
-        foreach (var root in roots)
-        {
-            var found = FindChildRecursive(root.transform, objectName);
-            if (found != null)
-            {
-                return found;
-            }
-        }
-
-        return null;
-    }
-
-    private static Transform FindChildRecursive(Transform parent, string childName)
-    {
-        if (parent == null)
-        {
-            return null;
-        }
-
-        if (parent.name.Equals(childName, StringComparison.OrdinalIgnoreCase))
-        {
-            return parent;
-        }
-
-        for (var index = 0; index < parent.childCount; index++)
-        {
-            var found = FindChildRecursive(parent.GetChild(index), childName);
-            if (found != null)
-            {
-                return found;
-            }
-        }
-
-        return null;
-    }
 }

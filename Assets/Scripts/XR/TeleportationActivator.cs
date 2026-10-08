@@ -8,7 +8,6 @@ public class TeleportationActivator : MonoBehaviour
     public XRRayInteractor rayInteractor;
     public InputActionProperty teleportActivatorAction;
 
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
         teleportInteractor.gameObject.SetActive(false);
@@ -31,7 +30,6 @@ public class TeleportationActivator : MonoBehaviour
         teleportInteractor.gameObject.SetActive(false);
     }
 
-    // Update is called once per frame
     void Update()
     {
         if (teleportActivatorAction.action.WasReleasedThisFrame())
